@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: text-til-lyd-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=3001
+      - API_RELOAD=false
+      - CORS_ORIGINS=http://localhost:8080,http://localhost:8081
+      - WHISPER_MODEL=large-v3
+      - WHISPER_DEVICE=cpu
+      - WHISPER_DOWNLOAD_ROOT=/app/models
+      - MAX_FILE_SIZE_MB=100
+      - ALLOWED_AUDIO_TYPES=m4a,mp3,wav,webm,ogg
+      - RATE_LIMIT_PER_MINUTE=10
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - TEMP_DIR=/app/temp
+      - CLEANUP_TEMP_FILES=true
+    volumes:
+      # Persist Whisper models between container restarts
+      - whisper-models:/app/models
+      # Mount temp directory (optional, can be in-memory)
+      - temp-files:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:3001/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: text-til-lyd-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
+volumes:
+  whisper-models:
+    driver: local
+  temp-files:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

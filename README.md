@@ -118,6 +118,68 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 3001
 
 3. Serve the frontend `dist/` folder with a web server (nginx, Apache, etc.)
 
+### Docker Deployment
+
+#### Prerequisites
+- Docker Desktop installed (Windows/Mac) or Docker Engine (Linux)
+- Docker Compose (included with Docker Desktop)
+
+#### Development with Docker
+
+1. **Start both services** (backend + frontend):
+```bash
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+2. **Access the application**:
+   - Frontend: `http://localhost:8081`
+   - Backend API: `http://localhost:3001`
+   - API Health: `http://localhost:3001/api/health`
+
+3. **Stop services**:
+```bash
+docker-compose -f docker-compose.dev.yml down
+```
+
+#### Production with Docker
+
+1. **Build and start production services**:
+```bash
+docker-compose up --build -d
+```
+
+2. **Access the application**:
+   - Frontend: `http://localhost:8080`
+   - Backend API: `http://localhost:3001`
+   - API Health: `http://localhost:3001/api/health`
+
+3. **View logs**:
+```bash
+docker-compose logs -f
+```
+
+4. **Stop services**:
+```bash
+docker-compose down
+```
+
+#### Docker Commands
+
+- **View running containers**: `docker-compose ps`
+- **Rebuild containers**: `docker-compose build --no-cache`
+- **Remove volumes** (including Whisper models): `docker-compose down -v`
+- **View backend logs**: `docker-compose logs -f backend`
+- **View frontend logs**: `docker-compose logs -f frontend`
+
+#### Docker Volumes
+
+- **whisper-models**: Persists downloaded Whisper models between container restarts
+- **temp-files**: Temporary audio files (cleared on container restart)
+
+#### Environment Variables
+
+You can override environment variables by creating a `.env` file or using Docker Compose environment variables. See `docker-compose.yml` for available options.
+
 ## Usage
 
 1. **Upload Audio File**:

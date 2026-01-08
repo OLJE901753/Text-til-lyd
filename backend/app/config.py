@@ -1,10 +1,16 @@
 """Configuration management using Pydantic Settings."""
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 
 class Settings(BaseSettings):
     """Application settings."""
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
     
     # FastAPI Configuration
     api_host: str = "0.0.0.0"
@@ -48,11 +54,6 @@ class Settings(BaseSettings):
     def max_file_size_bytes(self) -> int:
         """Convert MB to bytes."""
         return self.max_file_size_mb * 1024 * 1024
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
 
 
 settings = Settings()
