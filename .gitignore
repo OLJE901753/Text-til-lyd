@@ -35,3 +35,46 @@ desktop.ini
 *.tmp
 *.temp
 .cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Whisper models
+models/
+*.pt
+*.bin
+backend/models/
+backend/models/**
+
+# Backend temp files
+backend/temp/
+backend/temp/**
+temp/
+temp/**
+
+# Temporary check files
+installed-packages.txt
+
+# Frontend
+node_modules/
+.vite/
+dist/
+dist-ssr/
+*.local

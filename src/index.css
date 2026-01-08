@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 7%;         /* Very dark background (121212) */
+    --foreground: 0 0% 100%;       /* White text for readability */
+    --primary: 120 61% 50%;        /* Lime green primary (32CD32) */
+    --primary-foreground: 0 0% 100%;
+    --card: 0 0% 10%;              /* Dark card background */
+    --card-foreground: 0 0% 100%;
+    --secondary: 0 0% 13%;         /* Slightly lighter dark (222222) */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 15%;            /* Muted background */
+    --muted-foreground: 0 0% 80%;
+    --accent: 120 61% 50%;        /* Lime green accent */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;     /* Dark red for destructive actions */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;           /* Dark border color */
+    --input: 0 0% 20%;
+    --ring: 120 61% 50%;          /* Lime green ring */
+    
+    --radius: 0.75rem;
+    
+    /* Brand Colors */
+    --brand-blue: 210 100% 32%;
+    --brand-orange: 20 95% 60%;
+    --brand-light: 210 30% 95%;
+    --brand-dark: 0 0% 7%;
+    --brand-gray: 0 0% 30%;
+    --brand-lime: 120 61% 50%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(120 61% 60%));
+    --gradient-subtle: linear-gradient(135deg, hsl(0 0% 7%), hsl(0 0% 10%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 10%), hsl(0 0% 13%));
+    
+    /* Shadows */
+    --shadow-glow: 0 0 30px hsl(var(--primary) / 0.3);
+    --shadow-card: 0 4px 20px hsl(0 0% 0% / 0.3);
+    
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 120 61% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 120 61% 50%;
+  }
+
+  .dark {
+    --background: 0 0% 7%;         /* Very dark background (121212) */
+    --foreground: 0 0% 100%;       /* White text for readability */
+    --primary: 120 61% 50%;        /* Lime green primary (32CD32) */
+    --primary-foreground: 0 0% 100%;
+    --card: 0 0% 10%;              /* Dark card background */
+    --card-foreground: 0 0% 100%;
+    --secondary: 0 0% 13%;         /* Slightly lighter dark (222222) */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 15%;            /* Muted background */
+    --muted-foreground: 0 0% 80%;
+    --accent: 120 61% 50%;        /* Lime green accent */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;     /* Dark red for destructive actions */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;           /* Dark border color */
+    --input: 0 0% 20%;
+    --ring: 120 61% 50%;          /* Lime green ring */
+    
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 120 61% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 120 61% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-subtle {
+    background: var(--gradient-subtle);
+  }
+  
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  /* Glass Card Effects */
+  .glass-card {
+    @apply bg-black/40 backdrop-blur-lg border border-lime-500/20 rounded-xl shadow-sm;
+  }
+
+  .glass-panel {
+    @apply bg-black/40 backdrop-blur-lg border border-lime-500/20 rounded-xl shadow-sm;
+  }
+  
+  .feature-card {
+    @apply p-6 rounded-xl bg-black/40 border border-lime-500/30 shadow-sm transition-all duration-300 hover:shadow-md hover:translate-y-[-4px];
+  }
+  
+  .feature-icon-container {
+    @apply p-3 rounded-lg bg-lime-500/20 text-lime-500 w-fit mb-4;
+  }
+  
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24;
+  }
+  
+  .section-title {
+    @apply text-center mb-12;
+  }
+  
+  .section-subtitle {
+    @apply text-lg text-gray-300 max-w-3xl mx-auto mt-4;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-to-r from-lime-400 to-lime-600 bg-clip-text text-transparent;
+  }
+  
+  .gradient-bg {
+    @apply bg-gradient-to-br from-lime-500/10 to-lime-700/10;
+  }
+  
+  .cta-button {
+    @apply bg-lime-500 hover:bg-lime-600 text-black font-semibold px-6 py-3 rounded-md transition-all duration-200 inline-flex items-center gap-2;
+  }
+  
+  .cta-button-secondary {
+    @apply bg-transparent hover:bg-lime-500/10 text-lime-500 border border-lime-500/50 px-6 py-3 rounded-md transition-all duration-200 inline-flex items-center gap-2 font-medium;
+  }
+  
+  .animate-fade-up {
+    @apply opacity-0 translate-y-4 animate-[fade-up_0.5s_ease-out_forwards];
+  }
+  
+  @keyframes fade-up {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
