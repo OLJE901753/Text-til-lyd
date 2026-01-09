@@ -23,3 +23,25 @@ export function formatDuration(seconds: number): string {
   }
   return `${minutes}:${secs.toString().padStart(2, '0')}`
 }
+
+/**
+ * Checks if an error is from a browser extension (e.g., Phantom wallet)
+ * This helps filter out extension-related errors that don't affect the app
+ */
+export function isExtensionError(error: Error | string | unknown): boolean {
+  const errorMessage = typeof error === 'string' 
+    ? error 
+    : error instanceof Error 
+    ? error.message 
+    : String(error || '')
+  
+  return (
+    errorMessage.includes('[PHANTOM]') ||
+    errorMessage.includes('moz-extension://') ||
+    errorMessage.includes('chrome-extension://') ||
+    errorMessage.includes('Could not establish connection') ||
+    errorMessage.includes('Receiving end does not exist') ||
+    errorMessage.includes('solanaActionsContentScript') ||
+    errorMessage.includes('contentScript.js')
+  )
+}

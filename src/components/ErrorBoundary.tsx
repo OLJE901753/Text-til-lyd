@@ -24,7 +24,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo)
+    // Filter out extension-related errors
+    const errorMessage = error.message || String(error)
+    const isExtensionError = 
+      errorMessage.includes('[PHANTOM]') ||
+      errorMessage.includes('moz-extension://') ||
+      errorMessage.includes('chrome-extension://') ||
+      errorMessage.includes('Could not establish connection') ||
+      errorMessage.includes('Receiving end does not exist')
+    
+    // Only log non-extension errors
+    if (!isExtensionError) {
+      console.error('ErrorBoundary caught an error:', error, errorInfo)
+    }
   }
 
   private handleReset = () => {

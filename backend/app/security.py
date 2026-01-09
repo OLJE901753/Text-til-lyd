@@ -134,15 +134,18 @@ async def validate_upload_file(file: UploadFile) -> Tuple[bool, Optional[str], O
     Returns:
         Tuple of (is_valid, error_message, sanitized_filename)
     """
-    # Read file content for validation
-    file_content = await file.read()
+    # Read file content for validation (limit to first 1MB for MIME type detection)
+    # This prevents loading entire large files into memory just for validation
+    chunk = await file.read(1024 * 1024)  # Read first 1MB
     await file.seek(0)  # Reset file pointer
     
-    # Validate file size
-    file_size = len(file_content)
-    is_valid, error = validate_file_size(file_size)
-    if not is_valid:
-        return False, error, None
+    # Get file size from content-length header if available, otherwise estimate
+    file_size = getattr(file, 'size', None) or len(chunk)
+    
+    # For large files, we'll validate size during streaming upload
+    # But check if what we read exceeds max size
+    if file_size > settings.max_file_size_bytes:
+        return False, f"File size exceeds maximum allowed size ({settings.max_file_size_mb}MB)", None
     
     # Sanitize filename
     sanitized_name = sanitize_filename(file.filename)
@@ -153,14 +156,15 @@ async def validate_upload_file(file: UploadFile) -> Tuple[bool, Optional[str], O
         return False, error, None
     
     # Validate MIME type using magic bytes (or extension if magic unavailable)
-    is_valid, error = validate_mime_type(file_content, sanitized_name)
+    # Use the chunk we read (first 1MB is enough for MIME detection)
+    is_valid, error = validate_mime_type(chunk, sanitized_name)
     if not is_valid:
         return False, error, None
     
     # Log validation success
     if MAGIC_AVAILABLE:
         try:
-            mime = magic.Magic(mime=True).from_buffer(file_content)
+            mime = magic.Magic(mime=True).from_buffer(chunk)
             logger.info("File validation passed", filename=sanitized_name, size=file_size, mime=mime)
         except Exception:
             logger.info("File validation passed", filename=sanitized_name, size=file_size)

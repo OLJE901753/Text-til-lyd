@@ -93,8 +93,20 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    /* Proper text size adjustment with vendor prefixes */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    /* Ensure proper text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 

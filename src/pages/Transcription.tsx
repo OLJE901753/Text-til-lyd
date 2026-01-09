@@ -6,6 +6,7 @@ import { LoadingState } from '@/components/LoadingState'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useFileUpload } from '@/hooks/useFileUpload'
 import { useTranscription } from '@/hooks/useTranscription'
+import { apiClient } from '@/lib/api'
 import { Mic } from 'lucide-react'
 
 export default function Transcription() {
@@ -24,27 +25,49 @@ export default function Transcription() {
   }, [fileUpload.file])
 
   const handleFileSelect = async (file: File) => {
+    // Reset any previous state
     fileUpload.selectFile(file)
     fileUpload.setUploading(true)
     fileUpload.setError(null)
+    fileUpload.setUploadProgress(0)
     
     try {
-      // Set status to processing after upload completes
-      fileUpload.setUploadProgress(100)
-      await new Promise(resolve => setTimeout(resolve, 500)) // Brief delay for UX
+      // Check backend health before starting
+      try {
+        await apiClient.checkHealth()
+      } catch (healthError) {
+        throw new Error('Backend service is not available. Please ensure the server is running.')
+      }
       
+      // Track the highest progress to prevent resets
+      let maxProgress = 0
+      
+      // Start transcription - it will handle upload and processing states
       await transcription.transcribe(
         file,
         undefined, // Auto-detect language
         (progress) => {
-          fileUpload.setUploadProgress(progress)
+          // Only update if progress increased (prevent resets)
+          if (progress >= maxProgress) {
+            maxProgress = progress
+            fileUpload.setUploadProgress(progress)
+          } else {
+            // Log if progress decreases (shouldn't happen)
+            console.warn(`Progress decreased from ${maxProgress}% to ${progress}% - ignoring`)
+          }
         }
       )
-    } catch (error: any) {
-      fileUpload.setError(error.detail || error.message || 'Transcription failed')
-      // Error also handled by useTranscription hook
-    } finally {
+      
+      // Transcription completed successfully
       fileUpload.setUploading(false)
+      fileUpload.setUploadProgress(100)
+    } catch (error: any) {
+      // Error handling with detailed logging
+      console.error('Transcription error:', error)
+      const errorMessage = error.detail || error.message || 'Transcription failed'
+      fileUpload.setError(errorMessage)
+      fileUpload.setUploading(false)
+      // Keep progress at current value on error so user can see what happened
     }
   }
 
@@ -77,7 +100,11 @@ export default function Transcription() {
           onFileSelect={handleFileSelect}
           onCancel={handleCancel}
           uploadProgress={fileUpload.uploadProgress}
-          isUploading={fileUpload.isUploading || transcription.status === 'uploading'}
+          isUploading={
+            fileUpload.isUploading || 
+            transcription.status === 'uploading' || 
+            transcription.status === 'processing'
+          }
         />
 
         {/* Audio Player */}
@@ -87,12 +114,15 @@ export default function Transcription() {
 
         {/* Loading State */}
         {(transcription.status === 'processing' || 
+          transcription.status === 'uploading' ||
           (fileUpload.isUploading && fileUpload.uploadProgress < 100)) && (
           <LoadingState
             message={
               transcription.status === 'processing'
                 ? "Transcribing audio... This may take a moment."
-                : "Uploading file..."
+                : transcription.status === 'uploading'
+                ? "Uploading file..."
+                : "Processing..."
             }
             variant="inline"
           />

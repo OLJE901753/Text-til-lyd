@@ -26,11 +26,54 @@ export function useTranscription() {
       })
 
       try {
+        // Track upload progress and transition to processing when upload completes
+        let uploadCompleted = false
+        let lastProgress = 0
+        
         const result = await apiClient.transcribeAudio(
           file,
           language,
-          onProgress
+          (progress) => {
+            // Only process progress updates that are increasing (prevent resets)
+            if (progress >= lastProgress) {
+              lastProgress = progress
+              
+              // Call the provided progress callback
+              if (onProgress) {
+                onProgress(progress)
+              }
+              
+              // Transition to processing when upload reaches 100%
+              if (progress >= 100 && !uploadCompleted) {
+                uploadCompleted = true
+                setState((prev) => {
+                  // Only update if still in uploading state
+                  if (prev.status === 'uploading') {
+                    return {
+                      ...prev,
+                      status: 'processing',
+                    }
+                  }
+                  return prev
+                })
+              }
+            }
+          }
         )
+
+        // Ensure we transition to processing if not already there
+        setState((prev) => {
+          if (prev.status === 'uploading') {
+            return {
+              ...prev,
+              status: 'processing',
+            }
+          }
+          return prev
+        })
+
+        // Small delay to ensure processing state is visible
+        await new Promise(resolve => setTimeout(resolve, 300))
 
         setState({
           status: 'completed',

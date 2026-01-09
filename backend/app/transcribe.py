@@ -51,6 +51,8 @@ class WhisperTranscriptionService:
         start_time = time.time()
         
         try:
+            # Load model directly (this is called from async context, but model loading
+            # is CPU-bound and will be handled by thread pool in transcribe method)
             self._model = whisper.load_model(
                 model_to_load,
                 device=settings.whisper_device,
@@ -63,7 +65,7 @@ class WhisperTranscriptionService:
             logger.info("Whisper model loaded successfully", model=model_to_load, load_time=f"{load_time:.2f}s")
             
         except Exception as e:
-            logger.error("Failed to load Whisper model", error=str(e), model=model_to_load)
+            logger.error("Failed to load Whisper model", error=str(e), model=model_to_load, exc_info=True)
             raise Exception(f"Failed to load Whisper model: {str(e)}")
     
     def is_model_loaded(self) -> bool:
@@ -113,13 +115,22 @@ class WhisperTranscriptionService:
             # Get audio duration
             duration = await get_audio_duration(processed_path if use_processed else audio_path)
             
-            # Transcribe
-            result = self._model.transcribe(
-                str(processed_path if use_processed else audio_path),
-                language=language,
-                task=task,
-                verbose=False
-            )
+            # Transcribe in thread pool to avoid blocking event loop
+            import asyncio
+            import concurrent.futures
+            
+            # Use thread pool executor for CPU-bound transcription
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                result = await loop.run_in_executor(
+                    executor,
+                    lambda: self._model.transcribe(
+                        str(processed_path if use_processed else audio_path),
+                        language=language,
+                        task=task,
+                        verbose=False
+                    )
+                )
             
             transcription_time = time.time() - start_time
             

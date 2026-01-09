@@ -4,23 +4,15 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
-ENV/
-.venv
 *.egg-info/
 dist/
 build/
+*.egg
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-*.cover
-.hypothesis/
-
-# Environment
-.env
-.env.local
+# Virtual environments
+venv/
+env/
+ENV/
 
 # IDE
 .vscode/
@@ -28,13 +20,31 @@ htmlcov/
 *.swp
 *.swo
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Whisper models (will be downloaded in container)
+# Project specific
+temp/
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.webm
+
+# Models (will be downloaded)
 models/*.pt
 models/*.bin
 
-# Temp files
-temp/
+# Git
+.git/
+.gitignore

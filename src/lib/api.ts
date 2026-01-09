@@ -104,20 +104,48 @@ class ApiClient {
       formData.append('language', language)
     }
 
+    let lastReportedProgress = 0
+
     const response = await this.client.post<TranscriptionResponse>(
       '/transcribe',
       formData,
       {
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total && onUploadProgress) {
-            const progress = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
+            const progress = Math.min(
+              Math.round((progressEvent.loaded * 100) / progressEvent.total),
+              100
             )
-            onUploadProgress(progress)
+            
+            // Only report progress if it increased (prevent resets)
+            if (progress >= lastReportedProgress) {
+              lastReportedProgress = progress
+              onUploadProgress(progress)
+            } else if (progress === 100 && lastReportedProgress < 100) {
+              // Ensure we always report 100% when upload completes
+              lastReportedProgress = 100
+              onUploadProgress(100)
+            }
+          } else if (progressEvent.loaded && progressEvent.total === undefined && onUploadProgress) {
+            // Handle case where total is not available yet
+            // Estimate based on file size
+            const estimatedProgress = Math.min(
+              Math.round((progressEvent.loaded / file.size) * 100),
+              99
+            )
+            if (estimatedProgress > lastReportedProgress) {
+              lastReportedProgress = estimatedProgress
+              onUploadProgress(estimatedProgress)
+            }
           }
         },
       }
     )
+
+    // Ensure 100% is reported if not already done
+    if (onUploadProgress && lastReportedProgress < 100) {
+      onUploadProgress(100)
+    }
 
     return response.data
   }

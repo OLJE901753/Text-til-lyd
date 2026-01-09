@@ -20,4 +20,23 @@ export default defineConfig({
       },
     },
   },
+  // Optimize build and dev server memory usage
+  build: {
+    target: 'esnext',
+    minify: 'esbuild',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-progress', '@radix-ui/react-slot', '@radix-ui/react-toast'],
+        },
+      },
+    },
+  },
+  // Optimize dev server
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom'],
+    exclude: ['@tanstack/react-query'],
+  },
 })

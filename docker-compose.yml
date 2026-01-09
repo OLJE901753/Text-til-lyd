@@ -6,6 +6,15 @@ services:
     container_name: text-til-lyd-backend
     ports:
       - "3001:3001"
+    # Resource limits to prevent crashes and OOM kills
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     environment:
       - API_HOST=0.0.0.0
       - API_PORT=3001

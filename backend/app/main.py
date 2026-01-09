@@ -46,10 +46,33 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 async def startup_event():
     """Initialize services on startup."""
     import time
+    import shutil
     startup_start = time.time()
     
     logger.info("Starting Audio Transcription API", version="1.0.0")
     logger.info("Configuration loaded", model=settings.whisper_model)
+    
+    # Cleanup old temp files on startup
+    try:
+        temp_dir = Path(settings.temp_dir)
+        if temp_dir.exists():
+            # Remove files older than 1 hour
+            import time as time_module
+            current_time = time_module.time()
+            cleaned_count = 0
+            for file_path in temp_dir.iterdir():
+                if file_path.is_file():
+                    file_age = current_time - file_path.stat().st_mtime
+                    if file_age > 3600:  # 1 hour
+                        try:
+                            file_path.unlink()
+                            cleaned_count += 1
+                        except Exception as e:
+                            logger.warning("Failed to cleanup old temp file", file=str(file_path), error=str(e))
+            if cleaned_count > 0:
+                logger.info("Cleaned up old temp files", count=cleaned_count)
+    except Exception as e:
+        logger.warning("Failed to cleanup temp files on startup", error=str(e))
     
     # Optionally preload model on startup (can be disabled for faster startup)
     # Uncomment the following lines to preload model:
@@ -118,26 +141,70 @@ async def transcribe_audio(
     temp_file_path = None
     
     try:
+        # Ensure temp directory exists
+        from app.security import ensure_temp_directory
+        ensure_temp_directory()
+        
         # Validate file
         is_valid, error_msg, sanitized_name = await validate_upload_file(file)
         if not is_valid:
             logger.warning("File validation failed", error=error_msg, filename=file.filename)
             raise HTTPException(status_code=400, detail=error_msg)
         
-        # Save uploaded file to temp location
+        # Save uploaded file to temp location using streaming to prevent memory issues
         temp_file_path = get_temp_file_path(sanitized_name)
-        file_content = await file.read()
-        await save_uploaded_file(file_content, temp_file_path)
         
-        logger.info("File uploaded and validated", filename=sanitized_name, size=len(file_content))
+        # Stream file to disk in chunks to avoid loading entire file into memory
+        try:
+            import aiofiles
+            file_size = 0
+            chunk_size = 1024 * 1024  # 1MB chunks
+            
+            async with aiofiles.open(temp_file_path, 'wb') as f:
+                while True:
+                    chunk = await file.read(chunk_size)
+                    if not chunk:
+                        break
+                    await f.write(chunk)
+                    file_size += len(chunk)
+                    
+                    # Check file size during upload to prevent DoS
+                    if file_size > settings.max_file_size_bytes:
+                        temp_file_path.unlink(missing_ok=True)
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"File size exceeds maximum allowed size ({settings.max_file_size_mb}MB)"
+                        )
+            
+            if file_size == 0:
+                temp_file_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=400, detail="File is empty or could not be read")
+            
+            logger.info("File uploaded and validated", filename=sanitized_name, size=file_size)
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Cleanup on error
+            if temp_file_path.exists():
+                temp_file_path.unlink(missing_ok=True)
+            logger.error("Failed to read/save file", error=str(e), filename=sanitized_name, exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to process file: {str(e)}"
+            )
         
         # Get transcription service
         service = get_transcription_service()
         
-        # Load model if not already loaded
+        # Load model if not already loaded (in thread pool to avoid blocking event loop)
         if not service.is_model_loaded():
             logger.info("Loading Whisper model on first request")
-            service.load_model()
+            import asyncio
+            import concurrent.futures
+            
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                await loop.run_in_executor(executor, service.load_model)
         
         # Transcribe with timing
         import time
@@ -169,13 +236,33 @@ async def transcribe_audio(
     except HTTPException:
         raise
     except FileNotFoundError as e:
-        logger.error("File not found", error=str(e))
+        logger.error("File not found", error=str(e), exc_info=True)
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error("Transcription error", error=str(e), type=type(e).__name__)
+    except MemoryError as e:
+        logger.error("Out of memory", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Transcription failed: {str(e)}"
+            detail="File is too large or system is out of memory. Try a smaller file."
+        )
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(
+            "Transcription error",
+            error=str(e),
+            type=type(e).__name__,
+            traceback=error_trace,
+            exc_info=True
+        )
+        # Provide more detailed error message for debugging
+        error_detail = str(e)
+        if "model" in error_detail.lower() or "whisper" in error_detail.lower():
+            error_detail = f"Model error: {error_detail}. Please check if the Whisper model is properly installed."
+        elif "memory" in error_detail.lower() or "out of" in error_detail.lower():
+            error_detail = f"Memory error: {error_detail}. The file may be too large."
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcription failed: {error_detail}"
         )
     finally:
         # Cleanup temp file
@@ -232,4 +319,9 @@ if __name__ == "__main__":
         host=settings.api_host,
         port=settings.api_port,
         reload=settings.api_reload,
+        limit_concurrency=100,
+        limit_max_requests=1000,
+        timeout_keep_alive=300,
+        # Increase max request size to handle large audio files (100MB + buffer)
+        client_max_body_size=120 * 1024 * 1024,  # 120MB
     )
