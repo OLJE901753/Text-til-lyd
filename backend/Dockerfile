@@ -23,8 +23,17 @@ COPY pip.conf /etc/pip.conf
 COPY requirements.txt .
 
 # Install Python dependencies with optimized settings
+# OPTIMIZATION: Install PyTorch CPU-only FIRST to avoid CUDA dependencies
+# This reduces image size from ~4.5GB to ~1.5GB and speeds up build time
+# Since we use WHISPER_DEVICE=cpu, we don't need CUDA libraries
 RUN mkdir -p /tmp/pip-tmp && \
-    # Install packages, filtering out cleanup warnings
+    # Install PyTorch CPU-only version first (much smaller, no CUDA libraries)
+    pip install --no-cache-dir --no-warn-script-location \
+    --disable-pip-version-check \
+    --progress-bar off \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch torchaudio && \
+    # Install other dependencies (Whisper will use the already-installed PyTorch CPU)
     pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
     --progress-bar off \
