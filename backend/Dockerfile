@@ -11,11 +11,31 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Configure pip to suppress warnings
+ENV PIP_NO_WARN_SCRIPT_LOCATION=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_DEFAULT_TIMEOUT=100
+# Set TMPDIR to isolated location for easier cleanup
+ENV TMPDIR=/tmp/pip-tmp
+
+# Copy pip configuration and requirements
+COPY pip.conf /etc/pip.conf
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with optimized settings
+RUN mkdir -p /tmp/pip-tmp && \
+    # Install packages, filtering out cleanup warnings
+    pip install --no-cache-dir --no-warn-script-location \
+    --disable-pip-version-check \
+    --progress-bar off \
+    -r requirements.txt 2>&1 | grep -vE "WARNING: Failed to remove|You can safely remove" || pip install --no-cache-dir --no-warn-script-location --disable-pip-version-check --progress-bar off -r requirements.txt && \
+    # Clean up pip cache and temp files aggressively
+    pip cache purge 2>/dev/null || true && \
+    rm -rf /tmp/pip-tmp/* /tmp/pip-* /tmp/*.tmp /tmp/pip-build-tracker-* /tmp/pip-unpack-* /tmp/pip-metadata-* 2>/dev/null || true && \
+    # Remove pip.conf after installation (not needed in final image)
+    rm -f /etc/pip.conf && \
+    # Final cleanup of any remaining pip temp directories
+    find /tmp -maxdepth 1 -type d -name "pip-*" -exec rm -rf {} + 2>/dev/null || true
 
 # Copy application code
 COPY app/ ./app/
