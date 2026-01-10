@@ -1,9 +1,10 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from '@/components/ui/toaster'
 import { LoadingState } from '@/components/LoadingState'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { setupHealthChecks } from '@/utils/healthCheck'
 
 // Lazy load pages for code splitting
 const Transcription = lazy(() => import('@/pages/Transcription'))
@@ -22,6 +23,12 @@ const queryClient = new QueryClient({
 })
 
 function App() {
+  // Setup health checks on mount
+  useEffect(() => {
+    const cleanup = setupHealthChecks(30000) // Check every 30 seconds
+    return cleanup
+  }, [])
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

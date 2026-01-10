@@ -27,6 +27,7 @@ export function formatDuration(seconds: number): string {
 /**
  * Checks if an error is from a browser extension (e.g., Phantom wallet)
  * This helps filter out extension-related errors that don't affect the app
+ * @deprecated Use isExtensionError from '@/utils/errorHandler' instead
  */
 export function isExtensionError(error: Error | string | unknown): boolean {
   const errorMessage = typeof error === 'string' 

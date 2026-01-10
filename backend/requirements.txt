@@ -10,6 +10,7 @@ ffmpeg-python==0.2.0
 slowapi==0.1.9
 structlog==23.2.0
 aiofiles==23.2.1
+psutil>=5.9.0  # For memory monitoring (CPU mode)
 pytest==7.4.3
 pytest-asyncio==0.21.1
 httpx==0.25.2

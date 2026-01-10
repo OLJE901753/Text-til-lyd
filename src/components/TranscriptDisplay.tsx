@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Copy, Check, Download as DownloadIcon } from 'lucide-react'
+import { Copy, Check, Download as DownloadIcon, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TranscriptionResponse } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -182,6 +183,15 @@ export function TranscriptDisplay({ transcript, className }: TranscriptDisplayPr
         )}
       </CardHeader>
       <CardContent>
+        {transcript.confidence_warning && (
+          <Alert variant="default" className="mb-4 border-yellow-500/50 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+            <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <AlertDescription>
+              Low confidence transcription detected ({(transcript.confidence ? Math.round(transcript.confidence * 100) : 'N/A')}%).
+              The audio quality may be poor or the language may be unclear. Please review the transcript carefully.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="prose prose-invert max-w-none animate-fade-in">
           <p className="whitespace-pre-wrap text-foreground leading-relaxed">
             {transcript.transcript}

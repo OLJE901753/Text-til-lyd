@@ -11,12 +11,19 @@ export default defineConfig({
     },
   },
   server: {
-    host: '::',
+    host: 'localhost',
     port: 8081,
+    strictPort: true,
+    open: false,
+    hmr: {
+    port: 8081,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+        secure: false,
+        ws: true, // Enable WebSocket proxying
       },
     },
   },

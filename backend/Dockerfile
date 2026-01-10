@@ -1,12 +1,18 @@
-# Backend Dockerfile for Audio Transcription API
-FROM python:3.13-slim
+# Backend Dockerfile for Audio Transcription API with CUDA support
+# Use CUDA base image for GPU support (falls back to CPU if GPU unavailable)
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
-# Install system dependencies including FFmpeg and Git
+# Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
     ffmpeg \
     libmagic1 \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.11 /usr/bin/python \
+    && ln -s /usr/bin/pip3 /usr/bin/pip
 
 # Set working directory
 WORKDIR /app
@@ -22,18 +28,16 @@ ENV TMPDIR=/tmp/pip-tmp
 COPY pip.conf /etc/pip.conf
 COPY requirements.txt .
 
-# Install Python dependencies with optimized settings
-# OPTIMIZATION: Install PyTorch CPU-only FIRST to avoid CUDA dependencies
-# This reduces image size from ~4.5GB to ~1.5GB and speeds up build time
-# Since we use WHISPER_DEVICE=cpu, we don't need CUDA libraries
+# Install Python dependencies with CUDA support
+# Install PyTorch with CUDA 11.8 support for GPU acceleration
+# Falls back to CPU if GPU unavailable (handled at runtime)
 RUN mkdir -p /tmp/pip-tmp && \
-    # Install PyTorch CPU-only version first (much smaller, no CUDA libraries)
+    # Install PyTorch with CUDA 11.8 support (compatible with NVIDIA CUDA drivers)
     pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
     --progress-bar off \
-    --index-url https://download.pytorch.org/whl/cpu \
-    torch torchaudio && \
-    # Install other dependencies (Whisper will use the already-installed PyTorch CPU)
+    torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 && \
+    # Install other dependencies
     pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
     --progress-bar off \
@@ -63,6 +67,9 @@ ENV PYTHONHASHSEED=0
 ENV OMP_NUM_THREADS=2
 ENV MKL_NUM_THREADS=2
 ENV NUMEXPR_NUM_THREADS=2
+# CUDA optimizations (if GPU available)
+ENV CUDA_VISIBLE_DEVICES=0
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
 # Expose port
 EXPOSE 3001

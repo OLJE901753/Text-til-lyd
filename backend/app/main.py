@@ -2,9 +2,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+# Rate limiting disabled for personal use (performance > security)
+# from slowapi import Limiter, _rate_limit_exceeded_handler
+# from slowapi.util import get_remote_address
+# from slowapi.errors import RateLimitExceeded
 import uvicorn
 from pathlib import Path
 import shutil
@@ -36,10 +37,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure rate limiting
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Rate limiting disabled for personal use (performance > security)
+limiter = None  # Disabled for performance
 
 
 @app.on_event("startup")
@@ -50,7 +49,29 @@ async def startup_event():
     startup_start = time.time()
     
     logger.info("Starting Audio Transcription API", version="1.0.0")
-    logger.info("Configuration loaded", model=settings.whisper_model)
+    logger.info("Configuration loaded", model=settings.whisper_model, device=settings.whisper_device)
+    
+    # Log GPU/CPU availability on startup
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_count = torch.cuda.device_count()
+            for i in range(gpu_count):
+                gpu_name = torch.cuda.get_device_name(i)
+                vram_total = torch.cuda.get_device_properties(i).total_memory / (1024**3)
+                logger.info(
+                    "GPU detected",
+                    gpu_index=i,
+                    gpu_name=gpu_name,
+                    vram_total_gb=round(vram_total, 2),
+                    cuda_version=torch.version.cuda
+                )
+        else:
+            logger.info("No GPU detected, will use CPU")
+    except ImportError:
+        logger.warning("PyTorch not available, cannot detect GPU")
+    except Exception as e:
+        logger.warning("Error detecting GPU", error=str(e))
     
     # Cleanup old temp files on startup
     try:
@@ -74,16 +95,34 @@ async def startup_event():
     except Exception as e:
         logger.warning("Failed to cleanup temp files on startup", error=str(e))
     
-    # Optionally preload model on startup (can be disabled for faster startup)
-    # Uncomment the following lines to preload model:
-    # try:
-    #     service = get_transcription_service()
-    #     load_start = time.time()
-    #     service.load_model()
-    #     load_time = time.time() - load_start
-    #     logger.info("Model preloaded on startup", load_time=f"{load_time:.2f}s")
-    # except Exception as e:
-    #     logger.warning("Failed to preload model", error=str(e))
+    # Preload model on startup for faster first request (optimized for performance)
+    try:
+        service = get_transcription_service()
+        load_start = time.time()
+        
+        # Load model in background thread to not block startup
+        import asyncio
+        import concurrent.futures
+        loop = asyncio.get_event_loop()
+        
+        def load_model_sync():
+            service.load_model()
+        
+        # Start loading in background (don't wait for completion)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        loop.run_in_executor(executor, load_model_sync)
+        
+        # Log initial device info immediately
+        model_info = service.get_model_info()
+        logger.info("Model preloading initiated", model=model_info.get("model_name"), device=model_info.get("device"))
+        if model_info.get("gpu_info"):
+            logger.info("Initial GPU info", **model_info["gpu_info"])
+        
+        # No longer waiting for model to load here, it happens in background
+        # The first transcription request will wait if model is not ready
+        
+    except Exception as e:
+        logger.warning("Failed to initiate model preloading", error=str(e))
     
     startup_time = time.time() - startup_start
     logger.info("Startup completed", startup_time=f"{startup_time:.2f}s")
@@ -106,9 +145,9 @@ async def root():
 
 
 @app.get("/api/health", response_model=HealthResponse)
-@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+# @limiter.limit(f"{settings.rate_limit_per_minute}/minute") # Rate limiting disabled
 async def health_check(request: Request):
-    """Health check endpoint with model status."""
+    """Health check endpoint with model status and GPU info."""
     service = get_transcription_service()
     model_info = service.get_model_info()
     
@@ -117,12 +156,17 @@ async def health_check(request: Request):
         service="audio-transcription-api",
         version="1.0.0",
         model_loaded=model_info["loaded"],
-        model_name=model_info["model_name"] if model_info["loaded"] else None
+        model_name=model_info["model_name"] if model_info["loaded"] else None,
+        # Add device info to health check response
+        device=model_info.get("device", "unknown"),
+        gpu_info=model_info.get("gpu_info") if "gpu_info" in model_info else None,
+        cuda_available=model_info.get("cuda_available"),
+        cuda_device_count=model_info.get("cuda_device_count")
     )
 
 
 @app.post("/api/transcribe", response_model=TranscriptionResponse)
-@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+# @limiter.limit(f"{settings.rate_limit_per_minute}/minute") # Rate limiting disabled
 async def transcribe_audio(
     request: Request,
     file: UploadFile = File(...),
@@ -206,13 +250,30 @@ async def transcribe_audio(
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 await loop.run_in_executor(executor, service.load_model)
         
-        # Transcribe with timing
+        # Transcribe with timing and timeout
         import time
+        import asyncio
         start_time = time.time()
-        result = await service.transcribe(
-            temp_file_path,
-            language=language if language else None
-        )
+        
+        try:
+            result = await asyncio.wait_for(
+                service.transcribe(
+                    temp_file_path,
+                    language=language if language else None
+                ),
+                timeout=settings.transcription_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "Transcription request timed out",
+                filename=sanitized_name,
+                timeout=settings.transcription_timeout
+            )
+            raise HTTPException(
+                status_code=504,
+                detail=f"Transcription timed out after {settings.transcription_timeout} seconds. The file may be too large or the system is overloaded."
+            )
+        
         transcription_time = time.time() - start_time
         logger.info(
             "Transcription completed",
@@ -228,6 +289,7 @@ async def transcribe_audio(
             transcript=result["transcript"],
             language=result["language"],
             confidence=result["confidence"],
+            confidence_warning=result.get("confidence_warning", False),
             duration=result["duration"],
             segments=result.get("segments", []),
             model=result["model"]
@@ -274,17 +336,18 @@ async def transcribe_audio(
                 logger.warning("Failed to cleanup temp file", error=str(e), path=str(temp_file_path))
 
 
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """Handle rate limit exceeded errors."""
-    return JSONResponse(
-        status_code=429,
-        content=ErrorResponse(
-            error="Rate limit exceeded",
-            detail=f"Too many requests. Limit: {settings.rate_limit_per_minute} per minute",
-            code="RATE_LIMIT_EXCEEDED"
-        ).dict()
-    )
+# Rate limiting disabled for personal use (performance > security)
+# @app.exception_handler(RateLimitExceeded)
+# async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+#     """Handle rate limit exceeded errors."""
+#     return JSONResponse(
+#         status_code=429,
+#         content=ErrorResponse(
+#             error="Rate limit exceeded",
+#             detail=f"Too many requests. Limit: {settings.rate_limit_per_minute} per minute",
+#             code="RATE_LIMIT_EXCEEDED"
+#         ).dict()
+#     )
 
 
 @app.exception_handler(HTTPException)

@@ -2,11 +2,17 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import { setupUnhandledRejectionHandler, setupErrorHandler } from './utils/errorHandler'
+
+// Setup world-class error handling
+setupUnhandledRejectionHandler()
+setupErrorHandler()
 
 // Filter out browser extension errors from console
 // This prevents Phantom wallet and other extension errors from cluttering the console
 const originalError = console.error
 const originalWarn = console.warn
+const originalLog = console.log
 
 console.error = (...args: any[]) => {
   const errorMessage = args.join(' ')
@@ -41,7 +47,6 @@ console.warn = (...args: any[]) => {
 }
 
 // Suppress CSS parsing errors from extensions
-const originalLog = console.log
 console.log = (...args: any[]) => {
   const logMessage = args.join(' ')
   
@@ -54,42 +59,6 @@ console.log = (...args: any[]) => {
     originalLog.apply(console, args)
   }
 }
-
-// Handle unhandled promise rejections from extensions
-window.addEventListener('unhandledrejection', (event) => {
-  const errorMessage = event.reason?.message || String(event.reason || '')
-  
-  // Suppress extension-related promise rejections
-  if (
-    errorMessage.includes('[PHANTOM]') ||
-    errorMessage.includes('moz-extension://') ||
-    errorMessage.includes('chrome-extension://') ||
-    errorMessage.includes('Could not establish connection')
-  ) {
-    event.preventDefault()
-    return
-  }
-})
-
-// Handle general errors from extensions
-window.addEventListener('error', (event) => {
-  const errorMessage = event.message || String(event.error || '')
-  const source = event.filename || ''
-  
-  // Suppress extension-related errors
-  if (
-    errorMessage.includes('[PHANTOM]') ||
-    errorMessage.includes('moz-extension://') ||
-    errorMessage.includes('chrome-extension://') ||
-    errorMessage.includes('Could not establish connection') ||
-    errorMessage.includes('Receiving end does not exist') ||
-    source.includes('moz-extension://') ||
-    source.includes('chrome-extension://')
-  ) {
-    event.preventDefault()
-    return
-  }
-}, true)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

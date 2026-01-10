@@ -59,13 +59,19 @@ class ApiClient {
 
   private isRetryableError(error: AxiosError): boolean {
     if (!error.response) {
-      // Network error - retry
+      // Network error - retry only if it's a connection issue, not timeout
+      // Timeouts shouldn't be retried immediately as they indicate the request is too long
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        return false // Don't retry timeouts
+      }
+      // Retry connection errors (network issues)
       return true
     }
 
     const status = error.response.status
-    // Retry on 5xx errors and 429 (rate limit)
-    return status >= 500 || status === 429
+    // Retry on 5xx errors (server errors) and 429 (rate limit)
+    // Don't retry 4xx errors (client errors) or 504 (gateway timeout - already timed out)
+    return (status >= 500 && status !== 504) || status === 429
   }
 
   private transformError(error: AxiosError): ErrorResponse {
@@ -79,6 +85,24 @@ class ApiClient {
     }
 
     if (error.request) {
+      // Check if it's a timeout error
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        return {
+          error: 'Timeout error',
+          detail: 'The request timed out. The file may be too large or the server is overloaded.',
+          code: 'TIMEOUT_ERROR',
+        }
+      }
+      
+      // Check if it's a network/connection error
+      if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED' || !navigator.onLine) {
+        return {
+          error: 'Network error',
+          detail: 'Unable to connect to the server. Please check your internet connection and ensure the backend is running.',
+          code: 'NETWORK_ERROR',
+        }
+      }
+      
       return {
         error: 'Network error',
         detail: 'Unable to connect to the server. Please check your connection.',
@@ -88,7 +112,7 @@ class ApiClient {
 
     return {
       error: 'Unknown error',
-      detail: error.message,
+      detail: error.message || 'An unexpected error occurred',
       code: 'UNKNOWN_ERROR',
     }
   }

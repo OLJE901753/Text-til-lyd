@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertCircle } from 'lucide-react'
+import { logError, isExtensionError } from '@/utils/errorHandler'
 
 interface Props {
   children: ReactNode
@@ -24,18 +25,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Filter out extension-related errors
-    const errorMessage = error.message || String(error)
-    const isExtensionError = 
-      errorMessage.includes('[PHANTOM]') ||
-      errorMessage.includes('moz-extension://') ||
-      errorMessage.includes('chrome-extension://') ||
-      errorMessage.includes('Could not establish connection') ||
-      errorMessage.includes('Receiving end does not exist')
-    
-    // Only log non-extension errors
-    if (!isExtensionError) {
-      console.error('ErrorBoundary caught an error:', error, errorInfo)
+    // Use world-class error handling utility
+    if (!isExtensionError(error)) {
+      logError(error, { componentStack: errorInfo.componentStack })
     }
   }
 

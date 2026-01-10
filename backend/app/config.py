@@ -22,15 +22,16 @@ class Settings(BaseSettings):
     
     # Whisper Configuration
     whisper_model: str = "large-v3"
-    whisper_device: str = "cpu"
+    whisper_device: str = "auto"  # auto, cuda, or cpu - auto detects GPU availability
     whisper_download_root: str = "./models"
+    transcription_timeout: int = 600  # 10 minutes default timeout for transcription
     
     # File Upload Configuration
     max_file_size_mb: int = 100
     allowed_audio_types: str = "m4a,mp3,wav,webm,ogg"
     
-    # Rate Limiting
-    rate_limit_per_minute: int = 10
+    # Rate Limiting - Disabled for personal use (performance > security)
+    # rate_limit_per_minute: int = 10
     
     # Logging
     log_level: str = "INFO"

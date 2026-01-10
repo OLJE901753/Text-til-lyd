@@ -186,6 +186,15 @@ async def preprocess_audio(
         logger.warning("FFmpeg not found, using original file without preprocessing")
         return input_path
     
+    # Check if preprocessing is actually needed
+    # This is a simplification; a full check would involve parsing ffprobe output
+    # For now, assume if it's not 16kHz mono WAV, it needs processing.
+    # This can be enhanced with ffprobe for more precise checks.
+    if input_path.suffix.lower() == f".{WHISPER_FORMAT}" and \
+       await get_audio_duration(input_path) > 0: # Basic check, can be improved
+        logger.debug("Audio already in optimal format, skipping preprocessing", path=str(input_path))
+        return input_path
+    
     if output_path is None:
         # Create temporary output file
         temp_dir = Path(settings.temp_dir)

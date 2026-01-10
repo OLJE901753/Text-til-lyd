@@ -2,6 +2,7 @@ export interface TranscriptionResponse {
   transcript: string
   language?: string
   confidence?: number
+  confidence_warning?: boolean
   duration?: number
   segments?: TranscriptionSegment[]
   model: string
@@ -26,6 +27,16 @@ export interface HealthResponse {
   version: string
   model_loaded?: boolean
   model_name?: string
+  device?: string
+  gpu_info?: {
+    name?: string
+    vram_total_gb?: number
+    vram_free_gb?: number
+    cuda_version?: string
+    device_count?: number
+  }
+  cuda_available?: boolean
+  cuda_device_count?: number
 }
 
 export interface ErrorResponse {
