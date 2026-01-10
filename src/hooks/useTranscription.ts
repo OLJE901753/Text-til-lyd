@@ -28,8 +28,8 @@ export function useTranscription() {
       // Timeout watchdog: if stuck in processing for > 3 minutes, show error
       const processingTimeout = 3 * 60 * 1000 // 3 minutes
       const uploadTimeout = 2 * 60 * 1000 // 2 minutes for upload
-      let timeoutId: NodeJS.Timeout | null = null
-      let uploadTimeoutId: NodeJS.Timeout | null = null
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let uploadTimeoutId: ReturnType<typeof setTimeout> | null = null
       let isCancelled = false
 
       const clearProcessingTimeout = () => {
@@ -47,7 +47,7 @@ export function useTranscription() {
       }
 
       const setProcessingTimeout = () => {
-        clearTimeout()
+        clearProcessingTimeout()
         timeoutId = setTimeout(() => {
           if (!isCancelled) {
             const timeoutMessage = 'Transcription is taking longer than expected. The file may be very large or the server may be overloaded. Please try again or use a smaller file.'
@@ -69,8 +69,7 @@ export function useTranscription() {
         // Track upload progress and transition to processing when upload completes
         let uploadCompleted = false
         let lastProgress = 0
-        let lastProgressTime = Date.now()
-        let uploadStartTime = Date.now()
+        
 
         // Set upload timeout
         uploadTimeoutId = setTimeout(() => {
@@ -94,7 +93,6 @@ export function useTranscription() {
           file,
           language,
           (progress) => {
-            lastProgressTime = Date.now()
             // Only process progress updates that are increasing (prevent resets)
             if (progress >= lastProgress) {
               lastProgress = progress

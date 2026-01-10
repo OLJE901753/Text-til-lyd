@@ -11,16 +11,18 @@ RUN apt-get update && apt-get install -y \
     libmagic1 \
     git \
     && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/bin/python /usr/bin/pip \
     && ln -s /usr/bin/python3.11 /usr/bin/python \
     && ln -s /usr/bin/pip3 /usr/bin/pip
 
 # Set working directory
 WORKDIR /app
 
-# Configure pip to suppress warnings
+# Configure pip to suppress warnings and handle large downloads
 ENV PIP_NO_WARN_SCRIPT_LOCATION=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-ENV PIP_DEFAULT_TIMEOUT=100
+ENV PIP_DEFAULT_TIMEOUT=600
+ENV PIP_RETRIES=5
 # Set TMPDIR to isolated location for easier cleanup
 ENV TMPDIR=/tmp/pip-tmp
 
@@ -31,23 +33,29 @@ COPY requirements.txt .
 # Install Python dependencies with CUDA support
 # Install PyTorch with CUDA 11.8 support for GPU acceleration
 # Falls back to CPU if GPU unavailable (handled at runtime)
-RUN mkdir -p /tmp/pip-tmp && \
-    # Install PyTorch with CUDA 11.8 support (compatible with NVIDIA CUDA drivers)
-    pip install --no-cache-dir --no-warn-script-location \
+# Split into separate RUN commands for better caching and error recovery
+RUN mkdir -p /tmp/pip-tmp
+
+# Install PyTorch with CUDA 11.8 support (compatible with NVIDIA CUDA drivers)
+# Large file (2.3GB), so increase timeout and retry on failure
+RUN pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
-    --progress-bar off \
-    torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 && \
-    # Install other dependencies
-    pip install --no-cache-dir --no-warn-script-location \
+    --timeout=600 \
+    --retries=5 \
+    torch==2.1.0 torchaudio==2.1.0 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# Install other dependencies (Whisper and FastAPI stack)
+RUN pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
-    --progress-bar off \
-    -r requirements.txt 2>&1 | grep -vE "WARNING: Failed to remove|You can safely remove" || pip install --no-cache-dir --no-warn-script-location --disable-pip-version-check --progress-bar off -r requirements.txt && \
-    # Clean up pip cache and temp files aggressively
-    pip cache purge 2>/dev/null || true && \
+    --timeout=600 \
+    --retries=5 \
+    -r requirements.txt
+
+# Clean up pip cache and temp files
+RUN pip cache purge 2>/dev/null || true && \
     rm -rf /tmp/pip-tmp/* /tmp/pip-* /tmp/*.tmp /tmp/pip-build-tracker-* /tmp/pip-unpack-* /tmp/pip-metadata-* 2>/dev/null || true && \
-    # Remove pip.conf after installation (not needed in final image)
     rm -f /etc/pip.conf && \
-    # Final cleanup of any remaining pip temp directories
     find /tmp -maxdepth 1 -type d -name "pip-*" -exec rm -rf {} + 2>/dev/null || true
 
 # Copy application code

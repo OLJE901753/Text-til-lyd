@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Use world-class error handling utility
     if (!isExtensionError(error)) {
-      logError(error, { componentStack: errorInfo.componentStack })
+      const componentStack = errorInfo.componentStack ?? undefined; logError(error, { componentStack })
     }
   }
 
