@@ -6,14 +6,17 @@ FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y \
     python3.11 \
     python3.11-dev \
+    python3.11-venv \
     python3-pip \
     ffmpeg \
     libmagic1 \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/* \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
     && rm -f /usr/bin/python /usr/bin/pip \
     && ln -s /usr/bin/python3.11 /usr/bin/python \
-    && ln -s /usr/bin/pip3 /usr/bin/pip
+    && python3.11 -m pip install --upgrade pip setuptools wheel
 
 # Set working directory
 WORKDIR /app
@@ -38,7 +41,8 @@ RUN mkdir -p /tmp/pip-tmp
 
 # Install PyTorch with CUDA 11.8 support (compatible with NVIDIA CUDA drivers)
 # Large file (2.3GB), so increase timeout and retry on failure
-RUN pip install --no-cache-dir --no-warn-script-location \
+# Use python3.11 -m pip to ensure packages install for Python 3.11
+RUN python3.11 -m pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
     --timeout=600 \
     --retries=5 \
@@ -46,14 +50,14 @@ RUN pip install --no-cache-dir --no-warn-script-location \
     --index-url https://download.pytorch.org/whl/cu118
 
 # Install other dependencies (Whisper and FastAPI stack)
-RUN pip install --no-cache-dir --no-warn-script-location \
+RUN python3.11 -m pip install --no-cache-dir --no-warn-script-location \
     --disable-pip-version-check \
     --timeout=600 \
     --retries=5 \
     -r requirements.txt
 
 # Clean up pip cache and temp files
-RUN pip cache purge 2>/dev/null || true && \
+RUN python3.11 -m pip cache purge 2>/dev/null || true && \
     rm -rf /tmp/pip-tmp/* /tmp/pip-* /tmp/*.tmp /tmp/pip-build-tracker-* /tmp/pip-unpack-* /tmp/pip-metadata-* 2>/dev/null || true && \
     rm -f /etc/pip.conf && \
     find /tmp -maxdepth 1 -type d -name "pip-*" -exec rm -rf {} + 2>/dev/null || true
@@ -88,3 +92,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Run the application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3001"]
+
