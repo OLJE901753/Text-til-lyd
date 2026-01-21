@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: text-til-lyd-backend-dev
+    ports:
+      - "3001:3001"
+    # NVIDIA GPU runtime for CUDA support (falls back to CPU if GPU unavailable)
+    runtime: nvidia
+    # Resource limits to prevent crashes and OOM kills
+    # With GPU: Reduced memory (3GB) as GPU handles model in VRAM
+    # Without GPU: Falls back to CPU but may need more RAM (will auto-adjust based on detection)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 2G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=3001
+      - API_RELOAD=true
+      - CORS_ORIGINS=http://localhost:8081,http://localhost:5173
+      - WHISPER_MODEL=large-v3
+      - WHISPER_DEVICE=auto
+      - WHISPER_DOWNLOAD_ROOT=/app/models
+      - MAX_FILE_SIZE_MB=100
+      - ALLOWED_AUDIO_TYPES=m4a,mp3,wav,webm,ogg
+      - RATE_LIMIT_PER_MINUTE=10
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=console
+      - TEMP_DIR=/app/temp
+      - CLEANUP_TEMP_FILES=true
+    volumes:
+      # Mount source code for hot reload (if supported)
+      - ./backend/app:/app/app
+      # Persist Whisper models
+      - whisper-models:/app/models
+      # Temp files (cleared on restart)
+      - temp-files:/app/temp
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: text-til-lyd-frontend-dev
+    ports:
+      - "8081:8081"
+    volumes:
+      # Mount source for hot reload
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.node.json:/app/tsconfig.node.json
+      - ./tailwind.config.ts:/app/tailwind.config.ts
+      - ./postcss.config.js:/app/postcss.config.js
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - DOCKER_ENV=true
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  whisper-models:
+    driver: local
+  temp-files:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

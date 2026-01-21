@@ -1,0 +1,85 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: text-til-lyd-backend
+    ports:
+      - "3001:3001"
+    # NVIDIA GPU runtime for CUDA support (falls back to CPU if GPU unavailable)
+    runtime: nvidia
+    # Resource limits to prevent crashes and OOM kills
+    # With GPU: Reduced memory (3GB) as GPU handles model in VRAM
+    # Without GPU: Falls back to CPU but may need more RAM (will auto-adjust based on detection)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 2G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=3001
+      - API_RELOAD=false
+      - CORS_ORIGINS=http://localhost:8080,http://localhost:8081
+      - WHISPER_MODEL=large-v3
+      - WHISPER_DEVICE=auto
+      - WHISPER_DOWNLOAD_ROOT=/app/models
+      - MAX_FILE_SIZE_MB=100
+      - ALLOWED_AUDIO_TYPES=m4a,mp3,wav,webm,ogg
+      # Rate limiting disabled for personal use (performance > security)
+      # - RATE_LIMIT_PER_MINUTE=10
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - TEMP_DIR=/app/temp
+      - CLEANUP_TEMP_FILES=true
+    volumes:
+      # Persist Whisper models between container restarts
+      - whisper-models:/app/models
+      # Mount temp directory (optional, can be in-memory)
+      - temp-files:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:3001/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: text-til-lyd-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
+volumes:
+  whisper-models:
+    driver: local
+  temp-files:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

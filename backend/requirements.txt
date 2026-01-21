@@ -1,0 +1,18 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+# Whisper/Torch currently require NumPy 1.x (NumPy 2.x breaks torch.from_numpy in this stack)
+numpy==1.26.4
+git+https://github.com/openai/whisper.git
+python-multipart==0.0.6
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+ffmpeg-python==0.2.0
+# python-magic is optional (not available on Windows)
+# Install manually on Linux/macOS if needed: python-magic==0.4.27
+slowapi==0.1.9
+structlog==23.2.0
+aiofiles==23.2.1
+psutil>=5.9.0  # For memory monitoring (CPU mode)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
